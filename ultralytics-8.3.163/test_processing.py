@@ -2,7 +2,7 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from util import get_car, read_license_plate
+from util import get_car, read_license_plate, detect_car_brand, detect_car_color
 
 # Load models
 coco_model = YOLO('yolo11n.pt')
@@ -33,3 +33,13 @@ if test_crop.size > 0:
     print(f"read_license_plate result: {text}, {score}")
 else:
     print("Empty crop")
+
+# Test car brand detection
+if test_crop.size > 0:
+    brand, brand_conf = detect_car_brand(test_crop)
+    print(f"Car brand detection: {brand}, {brand_conf}")
+
+# Test car color detection
+if test_crop.size > 0:
+    color, color_conf = detect_car_color(test_crop)
+    print(f"Car color detection: {color}, {color_conf}")

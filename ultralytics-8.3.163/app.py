@@ -7,7 +7,7 @@ import os
 from ultralytics import YOLO
 
 # Import the necessary functions from util.py
-from util import get_car, read_license_plate
+from util import get_car, read_license_plate, detect_car_brand, detect_car_color
 
 # Set page configuration
 st.set_page_config(
@@ -58,32 +58,53 @@ def process_image(image, coco_model, license_plate_detector):
 
         xcar1, ycar1, xcar2, ycar2, car_score = car
 
-        # Crop the license plate
-        crop = image[int(y1):int(y2), int(x1):int(x2)]
-        text, ocr_score = read_license_plate(crop)
+        # Crop the license plate and car
+        license_plate_crop = image[int(y1):int(y2), int(x1):int(x2)]
+        car_crop = image[int(ycar1):int(ycar2), int(xcar1):int(xcar2)]
+
+        # Read license plate text
+        text, ocr_score = read_license_plate(license_plate_crop)
+
+        # Detect car brand and color
+        car_brand, brand_confidence = detect_car_brand(car_crop)
+        car_color, color_confidence = detect_car_color(car_crop)
 
         # Draw bounding boxes
         cv2.rectangle(image, (int(xcar1), int(ycar1)), (int(xcar2), int(ycar2)), (0, 255, 0), 2)
         cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
 
-        # Draw OCR text
+        # Prepare information text
+        info_texts = []
         if text:
-            cv2.putText(image, text, (int(x1), int(y1) - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+            info_texts.append(f"Plate: {text}")
+        if car_brand:
+            info_texts.append(f"Brand: {car_brand}")
+        if car_color:
+            info_texts.append(f"Color: {car_color}")
 
-            results_list.append({
-                "text": text,
-                "car_score": car_score,
-                "plate_bbox_score": plate_score,
-                "ocr_score": ocr_score
-            })
+        # Draw information text
+        y_offset = int(ycar1) - 10
+        for i, info_text in enumerate(info_texts):
+            cv2.putText(image, info_text, (int(xcar1), y_offset - (i * 25)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        results_list.append({
+            "text": text,
+            "car_score": car_score,
+            "plate_bbox_score": plate_score,
+            "ocr_score": ocr_score,
+            "car_brand": car_brand,
+            "brand_confidence": brand_confidence,
+            "car_color": car_color,
+            "color_confidence": color_confidence
+        })
 
     return image, results_list
 
 
 def main():
-    st.title("🚗 License Plate Recognition App")
-    st.markdown("Upload an image to detect and recognize license plates")
+    st.title("🚗 Advanced Vehicle Recognition App")
+    st.markdown("Upload an image to detect vehicles, recognize license plates, and identify car brands & colors")
 
     # Sidebar for model selection
     st.sidebar.header("Model Configuration")
@@ -154,12 +175,27 @@ def main():
             st.subheader("Detection Results")
             if results:
                 for i, res in enumerate(results):
-                    st.success(f"**License Plate {i + 1}:** {res['text']}")
-                    st.write(f"- Car Detection Confidence: {res['car_score'] * 100:.2f}%")
-                    st.write(f"- License Plate Detection Confidence: {res['plate_bbox_score'] * 100:.2f}%")
-                    st.write(f"- OCR Confidence: {res['ocr_score'] * 100:.2f}%")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.success(f"**Vehicle {i + 1} Detection Results:**")
+                        if res['text']:
+                            st.write(f"🚗 **License Plate:** {res['text']}")
+                        if res['car_brand']:
+                            st.write(f"🏭 **Brand:** {res['car_brand']} ({res['brand_confidence'] * 100:.1f}%)")
+                        if res['car_color']:
+                            st.write(f"🎨 **Color:** {res['car_color']} ({res['color_confidence'] * 100:.1f}%)")
+
+                    with col2:
+                        st.write("**Confidence Scores:**")
+                        st.write(f"- Car Detection: {res['car_score'] * 100:.2f}%")
+                        st.write(f"- License Plate Detection: {res['plate_bbox_score'] * 100:.2f}%")
+                        if res['text']:
+                            st.write(f"- OCR Confidence: {res['ocr_score'] * 100:.2f}%")
+
+                    st.divider()
             else:
-                st.warning("No license plates detected in the image.")
+                st.warning("No vehicles or license plates detected in the image.")
 
             st.info(f"Processing time: {processing_time:.2f} seconds")
 
