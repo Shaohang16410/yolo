@@ -1,4 +1,4 @@
-# util.py (UPDATED WITH CAR BRAND AND COLOR DETECTION)
+# util.py (COMPLETE UPDATED VERSION)
 
 import string
 import easyocr
@@ -6,11 +6,12 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 from collections import Counter
+import random
 
 # Initialize the OCR reader
 reader = easyocr.Reader(['en'], gpu=False)
 
-# Common car brands for recognition (you can expand this list)
+# Common car brands for recognition
 CAR_BRANDS = [
     'Toyota', 'Honda', 'Ford', 'Chevrolet', 'Nissan', 'Hyundai', 'Kia',
     'BMW', 'Mercedes', 'Audi', 'Volkswagen', 'Volvo', 'Subaru', 'Mazda',
@@ -128,54 +129,61 @@ def detect_car_brand(car_crop):
     Simple car brand detection based on visual features.
     This is a placeholder - you might want to train a dedicated model for better accuracy.
     """
-    if car_crop.size == 0:
-        return None, 0.0
+    if car_crop is None or car_crop.size == 0:
+        return "Unknown", 0.0
 
-    # Convert to grayscale and resize for consistency
-    gray = cv2.cvtColor(car_crop, cv2.COLOR_BGR2GRAY)
-    resized = cv2.resize(gray, (100, 100))
+    try:
+        # Convert to grayscale and resize for consistency
+        gray = cv2.cvtColor(car_crop, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(gray, (100, 100))
 
-    # Simple feature extraction (you can replace this with a trained model)
-    mean_intensity = np.mean(resized)
-    std_intensity = np.std(resized)
+        # Simple feature extraction
+        mean_intensity = np.mean(resized)
+        std_intensity = np.std(resized)
 
-    # This is a very basic approach - consider training a proper classifier
-    # For now, return a random brand with moderate confidence
-    import random
-    brand = random.choice(CAR_BRANDS)
-    confidence = random.uniform(0.6, 0.9)
+        # This is a very basic approach - consider training a proper classifier
+        # For now, return a random brand with moderate confidence
+        brand = random.choice(CAR_BRANDS)
+        confidence = random.uniform(0.6, 0.9)
 
-    return brand, confidence
+        return brand, confidence
+    except Exception as e:
+        print(f"Error in car brand detection: {e}")
+        return "Unknown", 0.0
 
 
 def detect_car_color(car_crop):
     """
     Detect the dominant color of the car using K-means clustering.
     """
-    if car_crop.size == 0:
-        return None, 0.0
+    if car_crop is None or car_crop.size == 0:
+        return "Unknown", 0.0
 
-    # Resize image for faster processing
-    resized = cv2.resize(car_crop, (100, 100))
+    try:
+        # Resize image for faster processing
+        resized = cv2.resize(car_crop, (100, 100))
 
-    # Convert to RGB
-    rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+        # Convert to RGB
+        rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
 
-    # Reshape the image to be a list of pixels
-    pixels = rgb.reshape(-1, 3)
+        # Reshape the image to be a list of pixels
+        pixels = rgb.reshape(-1, 3)
 
-    # Use K-means to find the dominant colors
-    kmeans = KMeans(n_clusters=3, n_init=10)
-    kmeans.fit(pixels)
+        # Use K-means to find the dominant colors
+        kmeans = KMeans(n_clusters=3, n_init=10, random_state=42)
+        kmeans.fit(pixels)
 
-    # Get the dominant color
-    dominant_color = kmeans.cluster_centers_[np.argmax(np.bincount(kmeans.labels_))]
+        # Get the dominant color
+        dominant_color = kmeans.cluster_centers_[np.argmax(np.bincount(kmeans.labels_))]
 
-    # Map RGB to color names
-    color_name = get_color_name(dominant_color)
-    confidence = 0.8  # Confidence for color detection is generally high
+        # Map RGB to color names
+        color_name = get_color_name(dominant_color)
+        confidence = 0.8  # Confidence for color detection is generally high
 
-    return color_name, confidence
+        return color_name, confidence
+    except Exception as e:
+        print(f"Error in car color detection: {e}")
+        return "Unknown", 0.0
 
 
 def get_color_name(rgb_color):
