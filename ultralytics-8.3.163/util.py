@@ -1,4 +1,4 @@
-# util.py (NEW, MORE FLEXIBLE VERSION)
+# util.py (UPDATED, ROBUST VERSION)
 
 import string
 import easyocr
@@ -7,17 +7,16 @@ import easyocr
 reader = easyocr.Reader(['en'], gpu=False)
 
 
-# NOTE: The old mapping dictionaries and format checkers are removed as they are too specific.
-
 def write_csv(results, output_path):
     """
     Write the results to a CSV file.
-    (This function remains the same as the previous version)
     """
     with open(output_path, 'w') as f:
-        f.write('{},{},{},{},{},{},{},{}\n'.format('frame_nmr', 'filename', 'car_id', 'car_bbox',
-                                                   'license_plate_bbox', 'license_plate_bbox_score', 'license_number',
-                                                   'license_number_score'))
+        f.write('{},{},{},{},{},{},{},{}\n'.format(
+            'frame_nmr', 'filename', 'car_id', 'car_bbox',
+            'license_plate_bbox', 'license_plate_bbox_score',
+            'license_number', 'license_number_score'
+        ))
 
         for frame_nmr in results.keys():
             filename = results[frame_nmr].get('filename', '')
@@ -25,43 +24,36 @@ def write_csv(results, output_path):
                 if car_id == 'filename':
                     continue  # Skip the filename key
 
-                print(results[frame_nmr][car_id])
                 if 'car' in results[frame_nmr][car_id].keys() and \
-                        'license_plate' in results[frame_nmr][car_id].keys() and \
-                        'text' in results[frame_nmr][car_id]['license_plate'].keys():
-                    f.write('{},{},{},{},{},{},{},{}\n'.format(frame_nmr,
-                                                               filename,
-                                                               car_id,
-                                                               '[{} {} {} {}]'.format(
-                                                                   results[frame_nmr][car_id]['car']['bbox'][0],
-                                                                   results[frame_nmr][car_id]['car']['bbox'][1],
-                                                                   results[frame_nmr][car_id]['car']['bbox'][2],
-                                                                   results[frame_nmr][car_id]['car']['bbox'][3]),
-                                                               '[{} {} {} {}]'.format(
-                                                                   results[frame_nmr][car_id]['license_plate']['bbox'][
-                                                                       0],
-                                                                   results[frame_nmr][car_id]['license_plate']['bbox'][
-                                                                       1],
-                                                                   results[frame_nmr][car_id]['license_plate']['bbox'][
-                                                                       2],
-                                                                   results[frame_nmr][car_id]['license_plate']['bbox'][
-                                                                       3]),
-                                                               results[frame_nmr][car_id]['license_plate'][
-                                                                   'bbox_score'],
-                                                               results[frame_nmr][car_id]['license_plate']['text'],
-                                                               results[frame_nmr][car_id]['license_plate'][
-                                                                   'text_score'])
-                            )
+                   'license_plate' in results[frame_nmr][car_id].keys() and \
+                   'text' in results[frame_nmr][car_id]['license_plate'].keys():
+
+                    f.write('{},{},{},{},{},{},{},{}\n'.format(
+                        frame_nmr,
+                        filename,
+                        car_id,
+                        '[{} {} {} {}]'.format(
+                            results[frame_nmr][car_id]['car']['bbox'][0],
+                            results[frame_nmr][car_id]['car']['bbox'][1],
+                            results[frame_nmr][car_id]['car']['bbox'][2],
+                            results[frame_nmr][car_id]['car']['bbox'][3]
+                        ),
+                        '[{} {} {} {}]'.format(
+                            results[frame_nmr][car_id]['license_plate']['bbox'][0],
+                            results[frame_nmr][car_id]['license_plate']['bbox'][1],
+                            results[frame_nmr][car_id]['license_plate']['bbox'][2],
+                            results[frame_nmr][car_id]['license_plate']['bbox'][3]
+                        ),
+                        results[frame_nmr][car_id]['license_plate']['bbox_score'],
+                        results[frame_nmr][car_id]['license_plate']['text'],
+                        results[frame_nmr][car_id]['license_plate']['text_score']
+                    ))
         f.close()
 
 
 def clean_plate_text(text):
     """
     Cleans the license plate text by removing non-alphanumeric characters and converting to uppercase.
-    Args:
-        text (str): The raw license plate text.
-    Returns:
-        str: The cleaned license plate text.
     """
     return "".join(char for char in text if char.isalnum()).upper()
 
@@ -69,20 +61,14 @@ def clean_plate_text(text):
 def read_license_plate(license_plate_crop):
     """
     Read the license plate text from the given cropped image.
-    This new version handles multi-line plates by combining text from all detections.
-
-    Args:
-        license_plate_crop (numpy.ndarray): Cropped image containing the license plate.
-
-    Returns:
-        tuple: Tuple containing the cleaned license plate text and its average confidence score.
+    Handles multi-line plates by combining text from all detections.
     """
     detections = reader.readtext(license_plate_crop)
 
     if not detections:
         return None, None
 
-    # Combine text from all detections and calculate average score
+    # Combine text from all detections
     full_text = ""
     total_score = 0
     for bbox, text, score in detections:
@@ -91,10 +77,9 @@ def read_license_plate(license_plate_crop):
 
     avg_score = total_score / len(detections)
 
-    # Clean the combined text
+    # Clean text
     cleaned_text = clean_plate_text(full_text)
 
-    # Basic validation: ensure the plate has a reasonable number of characters
     if len(cleaned_text) >= 3:
         return cleaned_text, avg_score
     else:
@@ -104,12 +89,19 @@ def read_license_plate(license_plate_crop):
 def get_car(license_plate, vehicle_detections):
     """
     Retrieve the vehicle coordinates based on the license plate coordinates.
-    (This function remains the same as the previous version)
+    Makes it robust for YOLOv8 detections (6 values: x1,y1,x2,y2,conf,class_id).
     """
     x1, y1, x2, y2, _, _ = license_plate
 
     for detection in vehicle_detections:
-        xcar1, ycar1, xcar2, ycar2, score = detection
+        # YOLOv8 detections: [x1, y1, x2, y2, conf, class_id]
+        if len(detection) >= 6:
+            xcar1, ycar1, xcar2, ycar2, score, _ = detection
+        elif len(detection) == 5:
+            xcar1, ycar1, xcar2, ycar2, score = detection
+        else:
+            continue  # Skip malformed detection
+
         if x1 > xcar1 and y1 > ycar1 and x2 < xcar2 and y2 < ycar2:
             return xcar1, ycar1, xcar2, ycar2, score
 
